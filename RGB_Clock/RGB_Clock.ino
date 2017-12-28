@@ -37,7 +37,7 @@ byte hourColour = 0;
 byte minuteColour = 0;
 byte colonColour = 0;
 
-byte numbers[15] = {
+byte numbers[20] = {
 // xGFEDCBA
   B01111110,  // 0    Segment Layout
   B00011000,  // 1      CCC
@@ -49,11 +49,17 @@ byte numbers[15] = {
   B00011100,  // 7      FFF
   B01111111,  // 8
   B00111111,  // 9
-  B00000100,  // upper dash
-  B00001010,  // upper sides
-  B00000001,  // middle dash
-  B01010000,  // lower sides
-  B00100000   // lower dash
+  B00000100,  // 10 upper dash
+  B00001010,  // 11 upper sides
+  B00000001,  // 12 middle dash
+  B01010000,  // 13 lower sides
+  B00100000,  // 14 lower dash
+// xGFEDCBA
+  B01011110,  // 15 A
+  B01001111,  // 16 P
+  B01110001,  // 17 o
+  B01010001,  // 18 n
+  B01000111   // 19 F
 };
 
 byte colours[8] = {0, 32, 64, 96, 128, 160, 192, 224}; // red, orange, yellow, green, cyan, blue, purple, magenta
@@ -79,22 +85,22 @@ void setup() {
   setSyncInterval(10);
 //  Serial.begin(9600);
 
-  for(int whiteLed = 0; whiteLed < NUM_LEDS; whiteLed = whiteLed + 1) {
-    // Turn our current led on to white, then show the leds
-    leds[whiteLed] = CRGB::White;
-  
-    // Show the leds (only one of which is set to white, from above)
-    FastLED.show();
-  
-    // Wait a little bit
-    delay(20);
-  
-    // Turn our current led back to black for the next loop around
-    leds[whiteLed] = CRGB::Black;
-  }
-
-  leds[NUM_LEDS - 1] = CRGB::Black;
-  FastLED.show();
+//  for(int whiteLed = 0; whiteLed < NUM_LEDS; whiteLed = whiteLed + 1) {
+//    // Turn our current led on to white, then show the leds
+//    leds[whiteLed] = CRGB::White;
+//  
+//    // Show the leds (only one of which is set to white, from above)
+//    FastLED.show();
+//  
+//    // Wait a little bit
+//    delay(20);
+//  
+//    // Turn our current led back to black for the next loop around
+//    leds[whiteLed] = CRGB::Black;
+//  }
+//
+//  leds[NUM_LEDS - 1] = CRGB::Black;
+//  FastLED.show();
 
   pinMode(hourPin, INPUT_PULLUP);
   pinMode(minutePin, INPUT_PULLUP);
@@ -117,7 +123,7 @@ void setup() {
   if (setButton.read() == 0) {
     delay(1000);
 
-    char lightMode = 0;
+    char lightMode = 3;
     
     while(true) {
       hourButton.update();
@@ -161,7 +167,21 @@ void setup() {
       FastLED.delay(50);
     }
   }
-  else delay(3000);
+  else if (hourButton.read() == 0) { // hour button pressed
+    byte count = 0;
+    while(true) {
+      fill_solid(leds, NUM_LEDS, CRGB::Red);
+      FastLED.show();
+      delay(5000);
+      fill_solid(leds, NUM_LEDS, CRGB::Green);
+      FastLED.show();
+      delay(5000);
+      fill_solid(leds, NUM_LEDS, CRGB::Blue);
+      FastLED.show();
+      delay(5000);
+    }
+  }
+  else delay(1000);
 }
 
 
@@ -242,14 +262,26 @@ void loop() {
   }
   
   else if (mode == SET_CLOCK) {
+    static unsigned long hourPressedDown;
+    static unsigned long minutePressedDown;
+    static unsigned long dstSetTime;
+
     showDigit(0, setMinute % 10,        CHSV(0,255,255), CHSV(0,0,0), 0);
     showDigit(1, (setMinute / 10) % 10, CHSV(0,255,255), CHSV(0,0,0), 0);
     showDigit(2, setHour % 10,          CHSV(0,255,255), CHSV(0,0,0), 0);
     showDigit(3, (setHour /10) % 10,    CHSV(0,255,255), CHSV(0,0,0), 0);
     setColon(false, CHSV(0, 255, 255));
 
-    static unsigned long hourPressedDown;
-    static unsigned long minutePressedDown;
+    if ((long)(millis() - dstSetTime) < 1000) {
+      if (dst == true) { // display on for 1 second
+        showDigit(0, 18, CHSV(128,255,255), CHSV(0,0,0), 0);
+        showDigit(1, 17, CHSV(128,255,255), CHSV(0,0,0), 0);
+      }
+      else { // display of(f) for 1 second
+        showDigit(0, 19, CHSV(128,255,255), CHSV(0,0,0), 0);
+        showDigit(1, 17, CHSV(128,255,255), CHSV(0,0,0), 0);
+      }
+    }
 
     if (hourValue == 0 && hourValueLast == 1) { // button pressed
       setHour++;
@@ -282,18 +314,15 @@ void loop() {
     else if (setValue == 1 && setValueLast == 0) {
       if ((long)(millis() - setPressed < 2000)) {
         dstSet = true;
+        dstSetTime = millis();
         if (dstSet == true) {
           if (dst == true) {
             setHour--;
             dst = false;
-            fill_solid(leds, NUM_LEDS, CRGB::Black);
-            delay(20);
           }
           else {
             setHour++;
             dst = true;
-            fill_solid(leds, NUM_LEDS, CRGB::White);
-            delay(20);
           }
           dstSet = false;
           EEPROM.write(3, dst);
