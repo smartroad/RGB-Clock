@@ -1,1 +1,3 @@
 # RGB Clock
+
+See Wiki
