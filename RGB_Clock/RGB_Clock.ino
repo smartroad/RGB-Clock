@@ -5,11 +5,43 @@
 #include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
 #include <Bounce2.h>
 
+/*
+ * Constants used throughout program
+ */
+ 
+/*  
+ *   Change these 2 depending on number of LEDs on the strip for each segment of a digit
+ *   and the number of LEDs used in the colon seperator
+ */
 #define LEDSPERSEG 3 // number of leds per segment
-#define LEDSPERDIG LEDSPERSEG * 7 // number of leds per digit
 #define LEDSPERCOL 2 // number of leds used for colon
 
+/*
+ * Change the following depending on which pins they are connected to
+ */
 #define DATA_PIN 3 // pin neopixels are connected to
+#define hourPin 7 // Hour adjustment button
+#define minutePin 5 // Minute adjustment button
+#define setPin 6 // Set button
+
+/*
+ * Change these depending on the light level that works for you and your LDR/Resistor divder.
+ * Holding the set button  down when applying power will put the clock into a mode where it displays
+ * the ADC value for the current light level. In that mode the hour and minute buttons can be used
+ * to change between the different light levels - HIGH - MED-HIGH - MED-LOW - LOW - which level you
+ * are on is displayed in the first digit as either the top segment (HIGH), both upper vertical
+ * segments (MED-HIGH), middle segment (MED-LOW) and both bottom vertical segments (LOW).
+ */
+#define HYSTERESIS 15 // variance before changing light level
+#define HIGHLEVEL 850 // threshold to go full brightness
+#define MEDIUMLEVEL 650 // threshold to change from low level or from high level
+#define LOWLEVEL 150 // threashold to change down to lowest brightness
+
+/*
+ * most of the following do not need to be changed except the numbers[] array if your segment layout
+ * is not the same as displayed below.
+ */
+#define LEDSPERDIG LEDSPERSEG * 7 // number of leds per digit
 
 #define DIGIT1 0                    // start of digit one
 #define DIGIT2 DIGIT1 + LEDSPERDIG  // start of digit two
@@ -19,25 +51,15 @@
 
 #define NUM_LEDS DIGIT4 + LEDSPERDIG // total number of LEDs in string
 
-#define HYSTERESIS 15
-#define HIGHLEVEL 850
-#define MEDIUMLEVEL 650
-#define LOWLEVEL 150
-
-// Define the array of leds
-CRGB leds[NUM_LEDS];
-
-byte count = 0; // temp testing variable
-
-byte mode = 0; // 1 = display clock; 0 = setclock
+/*
+ * mode numbers for changing into different display/setting modes
+ */
 #define DISPLAY_CLOCK 0
 #define SET_CLOCK 1
+#define SET_DISPLAYTIME 2
 
-byte hourColour = 0;
-byte minuteColour = 0;
-byte colonColour = 0;
 
-byte numbers[20] = {
+uint8_t numbers[20] = {
 // xGFEDCBA
   B01111110,  // 0    Segment Layout
   B00011000,  // 1      CCC
@@ -62,45 +84,50 @@ byte numbers[20] = {
   B01000111   // 19 F
 };
 
-byte colours[8] = {0, 32, 64, 96, 128, 160, 192, 224}; // red, orange, yellow, green, cyan, blue, purple, magenta
+uint8_t colours[8] = {0, 32, 64, 96, 128, 160, 192, 224}; // hues for colours: red, orange, yellow, green, cyan, blue, purple, magenta
+
+
+
+
+// Define the array of leds
+CRGB leds[NUM_LEDS];
+
+
+
+byte mode = DISPLAY_CLOCK; // holds current mode
+
+
+
+byte hourColour = 0;
+byte minuteColour = 0;
+byte colonColour = 0;
+
+
 
 Bounce hourButton = Bounce();
 Bounce minuteButton = Bounce();
 Bounce setButton = Bounce();
-#define hourPin 7
-#define minutePin 5
-#define setPin 6
+
+
 
 byte setMinute;
 byte setHour;
+byte onHour, offHour; // time display should turn on and off
+
+
 
 byte dst = 0;
 byte brightnessSetting = 0;
 byte brightnessLevel = 0; 
 byte brightnessTarget = 255;
 
+
+
 void setup() { 
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+  
   setSyncProvider(RTC.get);   // the function to get the time from the RTC
   setSyncInterval(10);
-//  Serial.begin(9600);
-
-//  for(int whiteLed = 0; whiteLed < NUM_LEDS; whiteLed = whiteLed + 1) {
-//    // Turn our current led on to white, then show the leds
-//    leds[whiteLed] = CRGB::White;
-//  
-//    // Show the leds (only one of which is set to white, from above)
-//    FastLED.show();
-//  
-//    // Wait a little bit
-//    delay(20);
-//  
-//    // Turn our current led back to black for the next loop around
-//    leds[whiteLed] = CRGB::Black;
-//  }
-//
-//  leds[NUM_LEDS - 1] = CRGB::Black;
-//  FastLED.show();
 
   pinMode(hourPin, INPUT_PULLUP);
   pinMode(minutePin, INPUT_PULLUP);
@@ -117,10 +144,17 @@ void setup() {
   minuteColour = EEPROM.read(1);
   colonColour = EEPROM.read(2);
   dst = EEPROM.read(3);
+  offHour = EEPROM.read(4);
+  onHour = EEPROM.read(5);
 
   setButton.update();
 
-  if (setButton.read() == 0) {
+  /*
+   * Test mode for calibrating brightness levels. Display will show the raw output of the light sensor.
+   * First digit shows current brightness levels - see characters 10 - 13 with 10 being brightest.
+   */
+   
+  if (setButton.read() == 0) { // Test mode for calibrating brightness thresholds
     delay(1000);
 
     char lightMode = 3;
@@ -167,7 +201,12 @@ void setup() {
       FastLED.delay(50);
     }
   }
-  else if (hourButton.read() == 0) { // hour button pressed
+  
+  /*
+   * test mode for checking led operation - flashes through all primary colours for whole display
+   */
+   
+  else if (hourButton.read() == 0) {
     byte count = 0;
     while(true) {
       fill_solid(leds, NUM_LEDS, CRGB::Red);
@@ -309,7 +348,7 @@ void loop() {
       setPressed = millis();
     }
     else if (setValue == 0 && setValueLast == 0) { // button held
-      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = DISPLAY_CLOCK; setHeld = 1; setTime(setHour, setMinute, 0, 1, 1, 2000); RTC.set(now());}
+      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = SET_DISPLAYTIME; setHeld = 1; setTime(setHour, setMinute, 0, 1, 1, 2000); RTC.set(now());}
     }
     else if (setValue == 1 && setValueLast == 0) {
       if ((long)(millis() - setPressed < 2000)) {
@@ -335,6 +374,69 @@ void loop() {
     if (setHour >= 24) setHour = 0;
     if (setMinute > 59) setMinute = 0;
   }
+  else if (mode == SET_DISPLAYTIME) {
+    static unsigned long hourPressedDown;
+    static unsigned long minutePressedDown;
+
+    showDigit(0, onHour % 10,        CHSV(0,255,255), CHSV(0,0,0), 0);
+    showDigit(1, (onHour / 10) % 10, CHSV(0,255,255), CHSV(0,0,0), 0);
+    showDigit(2, offHour % 10,          CHSV(96,255,255), CHSV(0,0,0), 0);
+    showDigit(3, (offHour /10) % 10,    CHSV(96,255,255), CHSV(0,0,0), 0);
+    setColon(false, CHSV(0, 255, 255));
+
+    if (hourValue == 0 && hourValueLast == 1) { // button pressed
+      offHour++;
+      hourPressedDown = millis();
+    }
+    else if (hourValue == 0 && hourValueLast == 0) { // button held
+      if ((long)(millis() - hourPressedDown) > 250) {
+        offHour++;
+        hourPressedDown = millis();
+      }
+    }
+
+    if (minuteValue == 0 && minuteValueLast == 1) { // button pressed
+      onHour++;
+      minutePressedDown = millis();
+    }
+    else if (minuteValue == 0 && minuteValue == 0) { // button held
+      if ((long)(millis() - minutePressedDown) > 250) {
+        onHour++;
+        minutePressedDown = millis();
+      }
+    }
+
+    if (setValue == 0 && setValueLast == 1) { // button pressed
+      setPressed = millis();
+    }
+    else if (setValue == 0 && setValueLast == 0) { // button held
+      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = DISPLAY_CLOCK; setHeld = 1; EEPROM.write(4, offHour); EEPROM.write(5, onHour);}
+    }
+    else if (setValue == 1 && setValueLast == 0) {
+//      if ((long)(millis() - setPressed < 2000)) {
+//        dstSet = true;
+//        dstSetTime = millis();
+//        if (dstSet == true) {
+//          if (dst == true) {
+//            setHour--;
+//            dst = false;
+//          }
+//          else {
+//            setHour++;
+//            dst = true;
+//          }
+//          dstSet = false;
+//          EEPROM.write(3, dst);
+//        }
+//      }
+    }
+    else if (setValue == 1 && setValueLast == 1) {
+      setHeld = 0;
+    }
+    if (onHour >= 24) onHour = 0;
+    if (offHour >= 24) offHour = 0;
+  }
+
 
   hourValueLast = hourValue;
   minuteValueLast = minuteValue;
@@ -391,75 +493,60 @@ void showClock() {
   byte minuteTens = 1;
   byte hourUnit = 2;
   byte hourTens = 4;
+  byte OFFHour;
 
   static byte color = 0; // test variable to change colour
-//  static unsigned long secondFlash = 0;
-//  static byte lastSecond = 0;
-
-  static int count = 0;
-
+  
   minuteUnit = minute() % 10;
   minuteTens = (minute() / 10) % 10;
   hourUnit = hour() % 10;
   hourTens = (hour() /10) % 10;
 
+  if (offHour == 0) OFFHour = 24;
+  else OFFHour = offHour;
 
-  /*
-   * (42,  192, 255) Warm White
-   */
-
-  if (minuteColour <= 7) {
-    showDigit(0, minuteUnit, CHSV(colours[minuteColour], 255, 255), CHSV(color+128, 255, 0), 0);
-    showDigit(1, minuteTens, CHSV(colours[minuteColour], 255, 255), CHSV(color+128, 255, 0), 0);
+  if (hour() < OFFHour && hour() >= onHour) {
+    if (minuteColour <= 7) {
+      showDigit(0, minuteUnit, CHSV(colours[minuteColour], 255, 255), CHSV(color+128, 255, 0), 0);
+      showDigit(1, minuteTens, CHSV(colours[minuteColour], 255, 255), CHSV(color+128, 255, 0), 0);
+    }
+    else if (minuteColour == 8) {
+      showDigit(0, minuteUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 1);
+      showDigit(1, minuteTens, CHSV(128, 255, 255), CHSV(0, 255, 0), 1);
+    }
+    else if (minuteColour == 9) {
+      showDigit(0, minuteUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
+      showDigit(1, minuteTens, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
+    }
+    else if (minuteColour == 10) {
+      showDigit(0, minuteUnit, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
+      showDigit(1, minuteTens, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
+    }
+    
+    if (hourColour <= 7) {
+      showDigit(2, hourUnit, CHSV(colours[hourColour], 255, 255), CHSV(color+128, 255, 0), 0);
+      showDigit(3, hourTens, CHSV(colours[hourColour], 255, 255), CHSV(color+128, 255, 0), 0);
+    }
+    else if (hourColour == 8) {
+      showDigit(2, hourUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 1);
+      showDigit(3, hourTens, CHSV(128, 255, 255), CHSV(0, 255, 0), 1);
+    }
+    else if (hourColour == 9) {
+      showDigit(2, hourUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
+      showDigit(3, hourTens, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
+    }
+    else if (hourColour == 10) {
+      showDigit(2, hourUnit, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
+      showDigit(3, hourTens, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
+    }
   }
-  else if (minuteColour == 8) {
-    showDigit(0, minuteUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 1);
-    showDigit(1, minuteTens, CHSV(128, 255, 255), CHSV(0, 255, 0), 1);
-  }
-  else if (minuteColour == 9) {
-    showDigit(0, minuteUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
-    showDigit(1, minuteTens, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
-  }
-  else if (minuteColour == 10) {
-    showDigit(0, minuteUnit, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
-    showDigit(1, minuteTens, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
-  }
-  
-  if (hourColour <= 7) {
-    showDigit(2, hourUnit, CHSV(colours[hourColour], 255, 255), CHSV(color+128, 255, 0), 0);
-    showDigit(3, hourTens, CHSV(colours[hourColour], 255, 255), CHSV(color+128, 255, 0), 0);
-  }
-  else if (hourColour == 8) {
-    showDigit(2, hourUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 1);
-    showDigit(3, hourTens, CHSV(128, 255, 255), CHSV(0, 255, 0), 1);
-  }
-  else if (hourColour == 9) {
-    showDigit(2, hourUnit, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
-    showDigit(3, hourTens, CHSV(0, 255, 255), CHSV(0, 255, 0), 2);
-  }
-  else if (hourColour == 10) {
-    showDigit(2, hourUnit, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
-    showDigit(3, hourTens, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
-  }
-
-
-//  if (second() != lastSecond) secondFlash = millis();
-//  if ((long)(millis() - secondFlash < 500)) setColon(false, CHSV(0, 255, 255));
-//  else {
-//    if (colonColour <= 7) setColon(true, CHSV(colours[colonColour], 255, 255));
-//    else if (colonColour == 8) setColon(true, CHSV(0, 0, 255));
-//  }
-//  lastSecond = second();
+  else {fill_solid(leds, NUM_LEDS, CRGB::Black);}
 
   if (second() % 2 == 0) setColon(false, CHSV(0, 255, 255));
   else {
     if (colonColour <= 7) setColon(true, CHSV(colours[colonColour], 255, 255));
     else if (colonColour == 8) setColon(true, CHSV(0, 0, 255));
   }
-
-  count++;
-  if (count > 9999) count = 0;
-
 }
 
 
@@ -512,33 +599,6 @@ void setColon(bool state, CHSV onColour) {
   }
 }
 
-
-
-
-
-
-/*
-    ones_column = bytefromrtc % 10;
-    tens_column = (bytefromrtc / 10) % 10;
-    hundreds_column = (bytefromrtc / 100) % 10;
- */
-
-
-/*
- * from: https://stackoverflow.com/questions/5590429/calculating-daylight-saving-time-from-only-date
-bool IsDst(int day, int month, int dow)
-  {
-    if (month < 3 || month > 10)  return false; 
-    if (month > 3 && month < 10)  return true; 
-
-    byte previousSunday = day - dow;
-
-    if (month == 3) return previousSunday >= 25;
-    if (month == 10) return previousSunday < 25;
-
-    return false; // this line never gonna happend
-  }
- */
 
 
 
