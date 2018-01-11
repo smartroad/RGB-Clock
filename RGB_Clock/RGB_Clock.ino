@@ -125,6 +125,7 @@ byte brightnessTarget = 255;
 
 
 void setup() { 
+//  Serial.begin(9600);
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
   
   setSyncProvider(RTC.get);   // the function to get the time from the RTC
@@ -487,6 +488,7 @@ void showClock() {
   byte hourUnit = 2;
   byte hourTens = 4;
   byte OFFHour;
+  byte displayOn;
 
   static byte color = 0; // test variable to change colour
   
@@ -498,7 +500,17 @@ void showClock() {
   if (offHour == 0) OFFHour = 24;
   else OFFHour = offHour;
 
-  if (hour() < OFFHour && hour() >= onHour) {
+  if (OFFHour > onHour) {
+    displayOn = hour() >= onHour && hour() < OFFHour;
+  }
+  else if (onHour > OFFHour) {
+    displayOn = !(hour() >= OFFHour && hour() < onHour);
+  }
+  else if (onHour == offHour) {
+    displayOn = true;
+  }
+
+  if (displayOn) {
     if (minuteColour <= 7) {
       showDigit(0, minuteUnit, CHSV(colours[minuteColour], 255, 255), CHSV(color+128, 255, 0), 0);
       showDigit(1, minuteTens, CHSV(colours[minuteColour], 255, 255), CHSV(color+128, 255, 0), 0);
