@@ -95,6 +95,7 @@ CRGB leds[NUM_LEDS];
 
 
 byte mode = DISPLAY_CLOCK; // holds current mode
+unsigned long modeChange;  // time mode was changed
 
 
 
@@ -243,6 +244,7 @@ void loop() {
   static byte eepromUpdate = 0;
   static unsigned long eepromDelay = 0;
   static byte dstSet = 0;
+  static byte onoff = 0;
 
   int lightTemp = lightLevel();
 
@@ -348,7 +350,7 @@ void loop() {
       setPressed = millis();
     }
     else if (setValue == 0 && setValueLast == 0) { // button held
-      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = SET_DISPLAYTIME; setHeld = 1; setTime(setHour, setMinute, 0, 1, 1, 2000); RTC.set(now());}
+      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = SET_DISPLAYTIME; modeChange = millis(); setHeld = 1; setTime(setHour, setMinute, 0, 1, 1, 2000); RTC.set(now());}
     }
     else if (setValue == 1 && setValueLast == 0) {
       if ((long)(millis() - setPressed < 2000)) {
@@ -378,30 +380,34 @@ void loop() {
     static unsigned long hourPressedDown;
     static unsigned long minutePressedDown;
 
-    showDigit(0, onHour % 10,        CHSV(0,255,255), CHSV(0,0,0), 0);
-    showDigit(1, (onHour / 10) % 10, CHSV(0,255,255), CHSV(0,0,0), 0);
-    showDigit(2, offHour % 10,          CHSV(96,255,255), CHSV(0,0,0), 0);
-    showDigit(3, (offHour /10) % 10,    CHSV(96,255,255), CHSV(0,0,0), 0);
+    if (onoff == 0) {
+      showDigit(0, onHour % 10,        CHSV(160,255,255), CHSV(0,0,0), 0);
+      showDigit(1, (onHour / 10) % 10, CHSV(160,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 18, CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 17, CHSV(96,255,255), CHSV(0,0,0), 0);
+    }
+    else {
+      showDigit(0, offHour % 10,        CHSV(160,255,255), CHSV(0,0,0), 0);
+      showDigit(1, (offHour / 10) % 10, CHSV(160,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 19, CHSV(0,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 17, CHSV(0,255,255), CHSV(0,0,0), 0);
+    }
     setColon(false, CHSV(0, 255, 255));
 
-    if (hourValue == 0 && hourValueLast == 1) { // button pressed
-      offHour++;
-      hourPressedDown = millis();
-    }
-    else if (hourValue == 0 && hourValueLast == 0) { // button held
-      if ((long)(millis() - hourPressedDown) > 250) {
-        offHour++;
-        hourPressedDown = millis();
-      }
-    }
+//    if (hourValue == 0 && hourValueLast == 1) { // button pressed
+//    }
+//    else if (hourValue == 0 && hourValueLast == 0) { // button held
+//    }
 
     if (minuteValue == 0 && minuteValueLast == 1) { // button pressed
-      onHour++;
+      if (onoff == 0) onHour++;
+      else offHour++;
       minutePressedDown = millis();
     }
     else if (minuteValue == 0 && minuteValue == 0) { // button held
       if ((long)(millis() - minutePressedDown) > 250) {
-        onHour++;
+        if (onoff == 0) onHour++;
+        else offHour++;
         minutePressedDown = millis();
       }
     }
@@ -413,22 +419,9 @@ void loop() {
       if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = DISPLAY_CLOCK; setHeld = 1; EEPROM.write(4, offHour); EEPROM.write(5, onHour);}
     }
     else if (setValue == 1 && setValueLast == 0) {
-//      if ((long)(millis() - setPressed < 2000)) {
-//        dstSet = true;
-//        dstSetTime = millis();
-//        if (dstSet == true) {
-//          if (dst == true) {
-//            setHour--;
-//            dst = false;
-//          }
-//          else {
-//            setHour++;
-//            dst = true;
-//          }
-//          dstSet = false;
-//          EEPROM.write(3, dst);
-//        }
-//      }
+      if ((long)(millis() - setPressed < 2000)) {
+        onoff = 1 - onoff;
+      }
     }
     else if (setValue == 1 && setValueLast == 1) {
       setHeld = 0;
