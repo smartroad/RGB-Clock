@@ -59,7 +59,7 @@
 #define SET_DISPLAYTIME 2
 
 
-uint8_t numbers[20] = {
+uint8_t numbers[22] = {
 // xGFEDCBA
   B01111110,  // 0    Segment Layout
   B00011000,  // 1      CCC
@@ -81,7 +81,9 @@ uint8_t numbers[20] = {
   B01001111,  // 16 P
   B01110001,  // 17 o
   B01010001,  // 18 n
-  B01000111   // 19 F
+  B01000111,  // 19 F
+  B01100011,  // 20 t
+  B01110000   // 21 u
 };
 
 uint8_t colours[8] = {0, 32, 64, 96, 128, 160, 192, 224}; // hues for colours: red, orange, yellow, green, cyan, blue, purple, magenta
@@ -124,9 +126,19 @@ byte brightnessTarget = 255;
 
 
 
+byte displayOverride = 2;
+
+
+
 void setup() { 
 //  Serial.begin(9600);
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  setColon(1, CHSV(0,255,64));
+  FastLED.show();
+
+  delay(3000);
   
   setSyncProvider(RTC.get);   // the function to get the time from the RTC
   setSyncInterval(10);
@@ -148,6 +160,9 @@ void setup() {
   dst = EEPROM.read(3);
   offHour = EEPROM.read(4);
   onHour = EEPROM.read(5);
+  displayOverride = EEPROM.read(6);
+
+  
 
   setButton.update();
 
@@ -157,7 +172,6 @@ void setup() {
    */
    
   if (setButton.read() == 0) { // Test mode for calibrating brightness thresholds
-    delay(1000);
 
     char lightMode = 3;
     
@@ -222,7 +236,6 @@ void setup() {
       delay(5000);
     }
   }
-  else delay(1000);
 }
 
 
@@ -395,29 +408,46 @@ void loop() {
     }
     setColon(false, CHSV(0, 255, 255));
 
-//    if (hourValue == 0 && hourValueLast == 1) { // button pressed
-//    }
-//    else if (hourValue == 0 && hourValueLast == 0) { // button held
-//    }
-
-    if (minuteValue == 0 && minuteValueLast == 1) { // button pressed
+    if (hourValue == 0 && hourValueLast == 1) { // button pressed
       if (onoff == 0) onHour++;
       else offHour++;
-      minutePressedDown = millis();
+      hourPressedDown = millis();
     }
-    else if (minuteValue == 0 && minuteValue == 0) { // button held
-      if ((long)(millis() - minutePressedDown) > 250) {
+    else if (hourValue == 0 && hourValueLast == 0) { // button held
+      if ((long)(millis() - hourPressedDown) > 250) {
         if (onoff == 0) onHour++;
         else offHour++;
-        minutePressedDown = millis();
+        hourPressedDown = millis();
       }
+    }
+
+    if (minuteValue == 0 && minuteValueLast == 1) { // button pressed
+      displayOverride++;
+      if (displayOverride > 3) displayOverride = 0;
+      minutePressedDown = millis();
+      
+    }
+//    else if (minuteValue == 0 && minuteValue == 0) { // button held
+//      
+//    }
+    if ((long)(millis() - minutePressedDown) < 1500) {
+      showDigit(1, 20, CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 21, CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 15, CHSV(96,255,255), CHSV(0,0,0), 0);
+      
+      if      (displayOverride == 0) showDigit(0, 0, CHSV(192,255,255), CHSV(0,0,0), 0);
+      else if (displayOverride == 1) showDigit(0, 1, CHSV(192,255,255), CHSV(0,0,0), 0);
+      else if (displayOverride == 2) showDigit(0, 2, CHSV(192,255,255), CHSV(0,0,0), 0);
+      else                           showDigit(0, 3, CHSV(192,255,255), CHSV(0,0,0), 0);
+      
+      FastLED.show();
     }
 
     if (setValue == 0 && setValueLast == 1) { // button pressed
       setPressed = millis();
     }
     else if (setValue == 0 && setValueLast == 0) { // button held
-      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = DISPLAY_CLOCK; setHeld = 1; EEPROM.write(4, offHour); EEPROM.write(5, onHour);}
+      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) { mode = DISPLAY_CLOCK; setHeld = 1; EEPROM.write(4, offHour); EEPROM.write(5, onHour); EEPROM.write(6, displayOverride);}
     }
     else if (setValue == 1 && setValueLast == 0) {
       if ((long)(millis() - setPressed < 2000)) {
@@ -489,6 +519,7 @@ void showClock() {
   byte hourTens = 4;
   byte OFFHour;
   byte displayOn;
+  static byte displayOverrideOld;
 
   static byte color = 0; // test variable to change colour
   
@@ -509,6 +540,23 @@ void showClock() {
   else if (onHour == offHour) {
     displayOn = true;
   }
+
+  if (!displayOn) {
+    if (displayOverride == 1) {
+      if (displayOverrideOld) displayOn = lightLevel() > LOWLEVEL - HYSTERESIS;
+      else displayOn = lightLevel() > LOWLEVEL;
+    }
+    else if (displayOverride == 2) {
+      if (displayOverrideOld) displayOn = lightLevel() > MEDIUMLEVEL - HYSTERESIS;
+      else displayOn = lightLevel() > MEDIUMLEVEL;
+    }
+    else if (displayOverride == 3) {
+      if (displayOverrideOld) displayOn = lightLevel() > HIGHLEVEL - HYSTERESIS;
+      else displayOn = lightLevel() > HIGHLEVEL;
+    }
+    displayOverrideOld = displayOn;
+  }
+  
 
   if (displayOn) {
     if (minuteColour <= 7) {
