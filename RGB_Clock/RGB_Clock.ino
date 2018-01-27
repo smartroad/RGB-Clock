@@ -517,25 +517,28 @@ void showClock() {
   byte minuteTens = 1;
   byte hourUnit = 2;
   byte hourTens = 4;
-  byte OFFHour;
+//  byte OFFHour;
   byte displayOn;
   static byte displayOverrideOld;
 
-  static byte color = 0; // test variable to change colour
+  static byte color = 0; // temp variable to change colour
   
   minuteUnit = minute() % 10;
   minuteTens = (minute() / 10) % 10;
   hourUnit = hour() % 10;
   hourTens = (hour() /10) % 10;
 
-  if (offHour == 0) OFFHour = 24;
-  else OFFHour = offHour;
+//  if (offHour == 0) OFFHour = 24;
+//  else OFFHour = offHour;
 
-  if (OFFHour > onHour) {
-    displayOn = hour() >= onHour && hour() < OFFHour;
+  if (offHour > onHour) {
+    displayOn = hour() >= onHour && hour() < offHour;
   }
-  else if (onHour > OFFHour) {
-    displayOn = !(hour() >= OFFHour && hour() < onHour);
+  else if (onHour > offHour) {
+    displayOn = !(hour() >= offHour && hour() < onHour);
+  }
+  else if (offHour == 0 && onHour == 0) {
+    displayOn = false;
   }
   else if (onHour == offHour) {
     displayOn = true;
