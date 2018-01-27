@@ -224,16 +224,27 @@ void setup() {
    
   else if (hourButton.read() == 0) {
     byte count = 0;
+    
     while(true) {
-      fill_solid(leds, NUM_LEDS, CRGB::Red);
+      hourButton.update();
+      minuteButton.update();
+
+      if (count == 0) fill_solid(leds, NUM_LEDS, CRGB::White);
+      else if (count == 1) fill_solid(leds, NUM_LEDS, CRGB::Red);
+      else if (count == 2) fill_solid(leds, NUM_LEDS, CRGB::Green);
+      else if (count == 3) fill_solid(leds, NUM_LEDS, CRGB::Blue);
+
+      if (hourButton.rose() == 1) {
+        count--;
+        if (count > 3) count = 3;
+      }
+      else if (minuteButton.rose() == 1) {
+        count++;
+        if (count > 3) count = 0;
+      }
+      
       FastLED.show();
-      delay(5000);
-      fill_solid(leds, NUM_LEDS, CRGB::Green);
-      FastLED.show();
-      delay(5000);
-      fill_solid(leds, NUM_LEDS, CRGB::Blue);
-      FastLED.show();
-      delay(5000);
+      FastLED.delay(100);
     }
   }
 }
