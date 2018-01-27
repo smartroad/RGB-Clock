@@ -282,7 +282,33 @@ void setup() {
    */
    
   else if (minuteButton.read() == 0) {
+    showDigit(3, 'C', CHSV(192, 255, 255), CHSV(0,0,0), 0);
+    showDigit(2, 'L', CHSV(192, 255, 255), CHSV(0,0,0), 0);
+    showDigit(1, 'R', CHSV(192, 255, 255), CHSV(0,0,0), 0);
+    showDigit(0, 'E', CHSV(192, 255, 255), CHSV(0,0,0), 0);
+    FastLED.show();
     
+    delay(1500);
+
+    showDigit(3, 'Y', CHSV(96, 255, 255), CHSV(0,0,0), 0);
+    showDigit(2, ':', CHSV(0, 255, 255), CHSV(0,0,0), 0);
+    showDigit(1, ':', CHSV(0, 255, 255), CHSV(0,0,0), 0);
+    showDigit(0, 'N', CHSV(0, 255, 255), CHSV(0,0,0), 0);
+    FastLED.show();
+    
+    while (true) {
+      hourButton.update();
+      minuteButton.update();
+
+      if (hourButton.rose()) {
+        for (int i = 0 ; i < EEPROM.length() ; i++) {
+          EEPROM.write(i, 0);
+        }
+      }
+
+      if (minuteButton.rose()) break;
+      
+    }
   }
 }
 
