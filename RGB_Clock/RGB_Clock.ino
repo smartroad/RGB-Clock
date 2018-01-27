@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
 #include <Bounce2.h>
+#include <avr/pgmspace.h>
 
 /*
  * Constants used throughout program
@@ -59,7 +60,7 @@
 #define SET_DISPLAYTIME 2
 
 
-uint8_t numbers[22] = {
+const char numbers[] PROGMEM = {
 // xGFEDCBA
   B01111110,  // 0    Segment Layout
   B00011000,  // 1      CCC
@@ -71,23 +72,51 @@ uint8_t numbers[22] = {
   B00011100,  // 7      FFF
   B01111111,  // 8
   B00111111,  // 9
-  B00000100,  // 10 upper dash
-  B00001010,  // 11 upper sides
-  B00000001,  // 12 middle dash
-  B01010000,  // 13 lower sides
-  B00100000,  // 14 lower dash
+  B00000000,  // NULL
+  B00000000,  // NULL
+  B00000000,  // NULL
+  B00000000,  // NULL
+  B00000000,  // NULL
+  B00000000,  // NULL
+  B00000000,  // NULL
 // xGFEDCBA
-  B01011110,  // 15 A
-  B01001111,  // 16 P
-  B01110001,  // 17 o
-  B01010001,  // 18 n
-  B01000111,  // 19 F
-  B01100011,  // 20 t
-  B01110000   // 21 u
+  B01011111,  // A
+  B01110011,  // b
+  B01101011,  // C
+  B01111001,  // d
+  B01100111,  // E
+  B01000111,  // F
+  B00111111,  // g
+  B01011011,  // H
+  B00011000,  // I
+  B00111000,  // J
+  B00000000,  // NULL (K)
+  B01100010,  // L
+  B00000000,  // NULL (M)
+  B01010001,  // n
+  B01110001,  // o
+  B01001111,  // P
+// xGFEDCBA
+  B00011111,  // q
+  B00111110,  // r
+  B00110111,  // S
+  B01100011,  // t
+  B00001111,  // u
+  B00000000,  // NULL (v)
+  B00000000,  // NULL (W)
+  B00000000,  // NULL (X)
+  B00111011,  // y
+  B00000000,  // NULL (Z)
+  B00000100,  // upper dash
+  B00000000,  // NULL as backslash dosn't work
+  B00001010,  // upper sides
+  B00000001,  // middle dash
+  B01010000,  // lower sides
+  B00100000   // lower dash
 };
 
-uint8_t colours[8] = {0, 32, 64, 96, 128, 160, 192, 224}; // hues for colours: red, orange, yellow, green, cyan, blue, purple, magenta
 
+uint8_t colours[8] = {0, 32, 64, 96, 128, 160, 192, 224}; // hues for colours: red, orange, yellow, green, cyan, blue, purple, magenta
 
 
 
@@ -190,19 +219,19 @@ void setup() {
 
       if (lightMode == 3) {
         brightnessTarget=255;
-        showDigit(3, 10, CHSV(0,255,255), CHSV(0,0,0), 0);
+        showDigit(3, '[', CHSV(0,255,255), CHSV(0,0,0), 0);
       }
       else if (lightMode == 2) {
         brightnessTarget=128;
-        showDigit(3, 11, CHSV(0,255,255), CHSV(0,0,0), 0);
+        showDigit(3, ']', CHSV(0,255,255), CHSV(0,0,0), 0);
       }
       else if (lightMode == 1) {
         brightnessTarget=64;
-        showDigit(3, 12, CHSV(0,255,255), CHSV(0,0,0), 0);
+        showDigit(3, '^', CHSV(0,255,255), CHSV(0,0,0), 0);
       }
       else if (lightMode == 0) {
         brightnessTarget=8;
-        showDigit(3, 13, CHSV(0,255,255), CHSV(0,0,0), 0);
+        showDigit(3, '_', CHSV(0,255,255), CHSV(0,0,0), 0);
       }
 
       FastLED.setBrightness(brightnessTarget);
@@ -246,6 +275,14 @@ void setup() {
       FastLED.show();
       FastLED.delay(100);
     }
+  }
+
+  /*
+   * clear all eeprom contents
+   */
+   
+  else if (minuteButton.read() == 0) {
+    
   }
 }
 
@@ -341,12 +378,12 @@ void loop() {
 
     if ((long)(millis() - dstSetTime) < 1000) {
       if (dst == true) { // display on for 1 second
-        showDigit(0, 18, CHSV(128,255,255), CHSV(0,0,0), 0);
-        showDigit(1, 17, CHSV(128,255,255), CHSV(0,0,0), 0);
+        showDigit(0, 'N', CHSV(128,255,255), CHSV(0,0,0), 0);
+        showDigit(1, 'O', CHSV(128,255,255), CHSV(0,0,0), 0);
       }
       else { // display of(f) for 1 second
-        showDigit(0, 19, CHSV(128,255,255), CHSV(0,0,0), 0);
-        showDigit(1, 17, CHSV(128,255,255), CHSV(0,0,0), 0);
+        showDigit(0, 'F', CHSV(128,255,255), CHSV(0,0,0), 0);
+        showDigit(1, 'O', CHSV(128,255,255), CHSV(0,0,0), 0);
       }
     }
 
@@ -420,14 +457,14 @@ void loop() {
     if (onoff == 0) {
       showDigit(0, onHour % 10,        CHSV(160,255,255), CHSV(0,0,0), 0);
       showDigit(1, (onHour / 10) % 10, CHSV(160,255,255), CHSV(0,0,0), 0);
-      showDigit(2, 18, CHSV(96,255,255), CHSV(0,0,0), 0);
-      showDigit(3, 17, CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 'N', CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 'O', CHSV(96,255,255), CHSV(0,0,0), 0);
     }
     else {
       showDigit(0, offHour % 10,        CHSV(160,255,255), CHSV(0,0,0), 0);
       showDigit(1, (offHour / 10) % 10, CHSV(160,255,255), CHSV(0,0,0), 0);
-      showDigit(2, 19, CHSV(0,255,255), CHSV(0,0,0), 0);
-      showDigit(3, 17, CHSV(0,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 'F', CHSV(0,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 'O', CHSV(0,255,255), CHSV(0,0,0), 0);
     }
     setColon(false, CHSV(0, 255, 255));
 
@@ -455,9 +492,9 @@ void loop() {
 //      
 //    }
     if ((long)(millis() - minutePressedDown) < 1500) {
-      showDigit(1, 20, CHSV(96,255,255), CHSV(0,0,0), 0);
-      showDigit(2, 21, CHSV(96,255,255), CHSV(0,0,0), 0);
-      showDigit(3, 15, CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(1, 'T', CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 'U', CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 'A', CHSV(96,255,255), CHSV(0,0,0), 0);
       
       if      (displayOverride == 0) showDigit(0, 0, CHSV(192,255,255), CHSV(0,0,0), 0);
       else if (displayOverride == 1) showDigit(0, 1, CHSV(192,255,255), CHSV(0,0,0), 0);
@@ -646,28 +683,35 @@ void showClock() {
 
 
 
-void showDigit(byte digit, byte number, CHSV onColour, CHSV offColour, byte routine) {
+void showDigit(byte digit, char charInput, CHSV onColour, CHSV offColour, byte routine) {
   byte startLED = 0;
   if (digit == 0) startLED = DIGIT1;
   else if (digit == 1) startLED = DIGIT2;
   else if (digit == 2) startLED = DIGIT3;
   else if (digit == 3) startLED = DIGIT4;
 
+  byte number;
   static byte colorStart = 0;
   static unsigned long animationDelay = 0;
+
+  if (charInput <= 9) {number = charInput;}
+  else {number = charInput - 48;}
+  
   CHSV colortemp = onColour;
   colortemp.h = colortemp.h + colorStart;
+
+  byte numberTemp = pgm_read_byte_near(numbers + number);
  
   for (byte i = 0; i < 7; i++) {
     byte ledpos = i * LEDSPERSEG + startLED;
-    if (bitRead(numbers[number], i) == 1) {
+    if (bitRead(numberTemp, i) == 1) {
       for (byte c = 0; c < LEDSPERSEG; c++) {
         if (routine == 0) leds[ledpos + c] = onColour;
         else if (routine == 1) leds[ledpos + c] = colortemp;
         else if (routine == 2) leds[ledpos + c] = colortemp;
       }
     }
-    else if (bitRead(numbers[number], i) == 0) {
+    else if (bitRead(numberTemp, i) == 0) {
       for (byte c = 0; c < LEDSPERSEG; c++) {
         leds[ledpos + c] = offColour;
       }
