@@ -82,7 +82,7 @@ const char numbers[] PROGMEM = {
 // xGFEDCBA
   B01011111,  // A
   B01110011,  // b
-  B01101011,  // C
+  B01100110,  // C
   B01111001,  // d
   B01100111,  // E
   B01000111,  // F
@@ -98,10 +98,10 @@ const char numbers[] PROGMEM = {
   B01001111,  // P
 // xGFEDCBA
   B00011111,  // q
-  B00111110,  // r
+  B01000001,  // r
   B00110111,  // S
   B01100011,  // t
-  B00001111,  // u
+  B00001110,  // u
   B00000000,  // NULL (v)
   B00000000,  // NULL (W)
   B00000000,  // NULL (X)
@@ -182,17 +182,6 @@ void setup() {
   minuteButton.interval(5);
   setButton.attach(setPin);
   setButton.interval(5);
-
-  hourColour = EEPROM.read(0);
-  minuteColour = EEPROM.read(1);
-  colonColour = EEPROM.read(2);
-  dst = EEPROM.read(3);
-  offHour = EEPROM.read(4);
-  onHour = EEPROM.read(5);
-  displayOverride = EEPROM.read(6);
-
-  
-
   setButton.update();
 
   /*
@@ -288,7 +277,9 @@ void setup() {
     showDigit(0, 'E', CHSV(192, 255, 255), CHSV(0,0,0), 0);
     FastLED.show();
     
-    delay(1500);
+    while (minuteButton.read() == 0) {
+      minuteButton.update();
+    }
 
     showDigit(3, 'Y', CHSV(96, 255, 255), CHSV(0,0,0), 0);
     showDigit(2, ':', CHSV(0, 255, 255), CHSV(0,0,0), 0);
@@ -300,16 +291,29 @@ void setup() {
       hourButton.update();
       minuteButton.update();
 
-      if (hourButton.rose()) {
+      if (hourButton.fell()) {
         for (int i = 0 ; i < EEPROM.length() ; i++) {
           EEPROM.write(i, 0);
         }
+        delay(1000);
+        break;
       }
 
-      if (minuteButton.rose()) break;
+      if (minuteButton.fell()) {
+        delay(1000);
+        break;
+      }
       
     }
   }
+
+  hourColour = EEPROM.read(0);
+  minuteColour = EEPROM.read(1);
+  colonColour = EEPROM.read(2);
+  dst = EEPROM.read(3);
+  offHour = EEPROM.read(4);
+  onHour = EEPROM.read(5);
+  displayOverride = EEPROM.read(6);
 }
 
 
@@ -518,9 +522,9 @@ void loop() {
 //      
 //    }
     if ((long)(millis() - minutePressedDown) < 1500) {
-      showDigit(1, 'T', CHSV(96,255,255), CHSV(0,0,0), 0);
-      showDigit(2, 'U', CHSV(96,255,255), CHSV(0,0,0), 0);
-      showDigit(3, 'A', CHSV(96,255,255), CHSV(0,0,0), 0);
+      showDigit(1, 'T', CHSV(32,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 'U', CHSV(32,255,255), CHSV(0,0,0), 0);
+      showDigit(3, 'A', CHSV(32,255,255), CHSV(0,0,0), 0);
       
       if      (displayOverride == 0) showDigit(0, 0, CHSV(192,255,255), CHSV(0,0,0), 0);
       else if (displayOverride == 1) showDigit(0, 1, CHSV(192,255,255), CHSV(0,0,0), 0);
