@@ -55,9 +55,10 @@
 /*
  * mode numbers for changing into different display/setting modes
  */
-#define DISPLAY_CLOCK 0
-#define SET_CLOCK 1
-#define SET_DISPLAYTIME 2
+#define DISPLAY_CLOCK 0    // show clock
+#define SET_CLOCK 1        // set time and daylight saving mode
+#define SET_DISPLAYTIME 2  // set on and off times and auto light level activation
+#define SET_DIGIT 3        // set 12/24 hour mode and leading zero
 
 
 const char numbers[] PROGMEM = {
@@ -101,7 +102,7 @@ const char numbers[] PROGMEM = {
   B01000001,  // r
   B00110111,  // S
   B01100011,  // t
-  B00001110,  // u
+  B01110000,  // u
   B00000000,  // NULL (v)
   B00000000,  // NULL (W)
   B00000000,  // NULL (X)
@@ -127,6 +128,8 @@ CRGB leds[NUM_LEDS];
 
 byte mode = DISPLAY_CLOCK; // holds current mode
 unsigned long modeChange;  // time mode was changed
+byte twelveHour;
+byte leadingZero;
 
 
 
@@ -314,6 +317,8 @@ void setup() {
   offHour = EEPROM.read(4);
   onHour = EEPROM.read(5);
   displayOverride = EEPROM.read(6);
+  twelveHour = EEPROM.read(7);
+  leadingZero = EEPROM.read(8);
 }
 
 
@@ -539,7 +544,7 @@ void loop() {
     }
     else if (setValue == 0 && setValueLast == 0) { // button held
       if ((long)(millis() - setPressed >= 2000) && setHeld == 0) {
-        mode = DISPLAY_CLOCK;
+        mode = SET_DIGIT;
         setHeld = 1;
         if (updateEEPROM ) {
           EEPROM.write(4, offHour);
@@ -559,6 +564,75 @@ void loop() {
     }
     if (onHour >= 24) onHour = 0;
     if (offHour >= 24) offHour = 0;
+  }
+
+  else if (mode == SET_DIGIT) {
+    static unsigned long hourPressedDown;
+    static unsigned long minutePressedDown;
+
+    setColon(false, CHSV(0, 255, 255));
+    
+    if (twelveHour) {
+      showDigit(3, 1, CHSV(32,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 2, CHSV(32,255,255), CHSV(0,0,0), 0);
+    }
+    else {
+      showDigit(3, 2, CHSV(32,255,255), CHSV(0,0,0), 0);
+      showDigit(2, 4, CHSV(32,255,255), CHSV(0,0,0), 0);
+    }
+
+    if (leadingZero) {
+      showDigit(1, 0, CHSV(224,255,255), CHSV(0,0,0), 0);
+      showDigit(0, 0, CHSV(224,255,255), CHSV(0,0,0), 0);
+    }
+    else {
+      showDigit(1, 0, CHSV(224,255,96), CHSV(0,0,0), 0);
+      showDigit(0, 0, CHSV(224,255,255), CHSV(0,0,0), 0);
+    }
+
+    FastLED.show();
+
+    if (hourValue == 0 && hourValueLast == 1) { // button pressed
+      twelveHour = 1 - twelveHour;
+      updateEEPROM = true;
+    }
+//    else if (hourValue == 0 && hourValueLast == 0) { // button held
+//      
+//    }
+
+    if (minuteValue == 0 && minuteValueLast == 1) { // button pressed
+      leadingZero = 1 - leadingZero;
+      updateEEPROM = true;
+    }
+//    else if (minuteValue == 0 && minuteValue == 0) { // button held
+//      
+//    }
+    
+    
+
+    if (setValue == 0 && setValueLast == 1) { // button pressed
+      setPressed = millis();
+    }
+    else if (setValue == 0 && setValueLast == 0) { // button held
+      if ((long)(millis() - setPressed >= 2000) && setHeld == 0) {
+        mode = DISPLAY_CLOCK;
+        setHeld = 1;
+        if (updateEEPROM) {
+          EEPROM.write(7, twelveHour);
+          EEPROM.write(8, leadingZero);
+          updateEEPROM = false;
+        }
+      }
+    }
+//    else if (setValue == 1 && setValueLast == 0) {
+//      if ((long)(millis() - setPressed < 2000)) {
+//        
+//      }
+//    }
+    else if (setValue == 1 && setValueLast == 1) {
+      setHeld = 0;
+    }
+    
   }
 
 
@@ -617,7 +691,7 @@ void showClock() {
   byte minuteTens = 1;
   byte hourUnit = 2;
   byte hourTens = 4;
-//  byte OFFHour;
+  byte tempHour;
   byte displayOn;
   static byte displayOverrideOld;
 
@@ -625,11 +699,13 @@ void showClock() {
   
   minuteUnit = minute() % 10;
   minuteTens = (minute() / 10) % 10;
-  hourUnit = hour() % 10;
-  hourTens = (hour() /10) % 10;
 
-//  if (offHour == 0) OFFHour = 24;
-//  else OFFHour = offHour;
+  tempHour = hour();
+  if (twelveHour && tempHour > 12) {
+    tempHour = tempHour - 12;
+  }
+  hourUnit = tempHour % 10;
+  hourTens = (tempHour /10) % 10;
 
   if (offHour > onHour) {
     displayOn = hour() >= onHour && hour() < offHour;
@@ -695,13 +771,20 @@ void showClock() {
       showDigit(2, hourUnit, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
       showDigit(3, hourTens, CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
     }
+
+    if (!leadingZero && hourTens == 0) showDigit(3, ':', CHSV(0, 0, 255), CHSV(0, 255, 0), 0);
   }
   else {fill_solid(leds, NUM_LEDS, CRGB::Black);}
 
+  byte colonMode;
+  if (twelveHour && hour() < 12) colonMode = 1;
+  else if (twelveHour && hour() >= 12) colonMode = 2;
+  else colonMode = 3;
+
   if (second() % 2 == 0) setColon(false, CHSV(0, 255, 255));
   else {
-    if (colonColour <= 7) setColon(true, CHSV(colours[colonColour], 255, 255));
-    else if (colonColour == 8) setColon(true, CHSV(0, 0, 255));
+    if (colonColour <= 7) setColon(colonMode, CHSV(colours[colonColour], 255, 255));
+    else if (colonColour == 8) setColon(colonMode, CHSV(0, 0, 255));
   }
 }
 
@@ -724,13 +807,16 @@ void showDigit(byte digit, char charInput, CHSV onColour, CHSV offColour, byte r
   static byte colorStart = 0;
   static unsigned long animationDelay = 0;
 
-  if (charInput <= 9) {number = charInput;}
-  else {number = charInput - 48;}
-  
   CHSV colortemp = onColour;
   colortemp.h = colortemp.h + colorStart;
 
+  if (charInput <= 9) {number = charInput;}
+  else {number = charInput - 48;}
   byte numberTemp = pgm_read_byte_near(numbers + number);
+
+//  Serial.print(charInput, DEC);
+//  Serial.print(" : ");
+//  Serial.println(numberTemp, BIN);
  
   for (byte i = 0; i < 7; i++) {
     byte ledpos = i * LEDSPERSEG + startLED;
@@ -755,10 +841,28 @@ void showDigit(byte digit, char charInput, CHSV onColour, CHSV offColour, byte r
   }
 }
 
-void setColon(bool state, CHSV onColour) {
-  for (byte i = 0; i < LEDSPERCOL; i++) {
-    if (state == true) leds[i + COLON] = onColour;
-    else leds[i + COLON] = CHSV(0,0,0);
+void setColon(byte state, CHSV onColour) {
+  if (state == 3) {
+    for (byte i = 0; i < LEDSPERCOL; i++) {
+      leds[i + COLON] = onColour;
+    }
+  }
+  else if (state == 2) {
+    for (byte i = 0; i < LEDSPERCOL; i++) {
+      if (i < LEDSPERCOL / 2) leds[i + COLON] = onColour;
+      else leds[i + COLON] = CHSV(0,0,0);
+    }
+  }
+  else if (state == 1) {
+    for (byte i = 0; i < LEDSPERCOL; i++) {
+      if (i > LEDSPERCOL / 2) leds[i + COLON] = onColour;
+      else leds[i + COLON] = CHSV(0,0,0);
+    }
+  }
+  else if (state == 0) {
+    for (byte i = 0; i < LEDSPERCOL; i++) {
+      leds[i + COLON] = CHSV(0,0,0);
+    }
   }
 }
 
