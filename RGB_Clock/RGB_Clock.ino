@@ -855,7 +855,7 @@ void setColon(byte state, CHSV onColour) {
   }
   else if (state == 1) {
     for (byte i = 0; i < LEDSPERCOL; i++) {
-      if (i > LEDSPERCOL / 2) leds[i + COLON] = onColour;
+      if (i >= LEDSPERCOL / 2) leds[i + COLON] = onColour;
       else leds[i + COLON] = CHSV(0,0,0);
     }
   }
